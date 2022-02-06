@@ -138,16 +138,16 @@ function updateStatus() {
   rAF(updateStatus);
 }
 
-function getGlobalaStick(){
+function getGlobalStick(){
   return globalStick;
 }
 
-interface Navigator {
-  webkitGetGamepads: any
-}
+// interface Navigator {
+//   webkitGetGamepads: any
+// }
 
 function scangamepads() {
-  var gamepads = navigator.getGamepads ? navigator.getGamepads() : ((navigator as any).webkitGetGamepads ? (navigator as any).webkitGetGamepads() : []);
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : ((navigator).webkitGetGamepads ? (navigator).webkitGetGamepads() : []);
   for (var i = 0; i < gamepads.length; i++) {
     if (gamepads[i] && (gamepads[i].index in controllers)) {
       controllers[gamepads[i].index] = gamepads[i];
@@ -167,5 +167,5 @@ if (haveEvents) {
 
 export {
   updateStatus,
-  getGlobalaStick
+  getGlobalStick
 }
