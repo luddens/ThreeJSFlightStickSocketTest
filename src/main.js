@@ -89,30 +89,43 @@ export class ThreePhysicsComponent extends Scene3D {
     const box = this.physics.add.box(
       { x: 0, y: 2, z: -5, width: 1, height: 1, depth: 3, mass :1, collisionFlags: 0 },
       { lambert: { color: 'red', transparent: true, opacity: 0.5 } }
+    );
+
+   const vert1 = this.physics.add.box(
+        { x: 5, y: 2, z: -5, width: .5, height: .5, depth: .5, mass :0, collisionFlags: 6 },
+        { lambert: { color: 'red', transparent: true, opacity: 1 } }
     )
 
+    let c2 = this.add.box(
+      { x: 1, y: 0, z: 0, mass: 5, collisionFlags: 0 },
+      { lambert: { color: 'red', transparent: true, opacity: 0.25 } 
+    });
+    
+    this.scene.vertex = vert1;
 
     let startRot = THREE.MathUtils.degToRad(90);
     startRot = 0;
 
+    // let group2 = new THREE.Group();
     let group = new THREE.Group();
-    group.position.z = 20;
-    group.position.y = 2;
-    group.rotation.z -= startRot;
 
-    // let c1 = this.add.box({ x: 1, y: 0, z: -1, mass: 1555 });
-    let c2 = this.add.box(
-        { x: 1, y: 0, z: 0, mass: 5, collisionFlags: 0 },
-        { lambert: { color: 'red', transparent: true, opacity: 0.25 } 
-      });
-      
-    // console.log(c2);
+    // group2.position.x = 0;
+    // group2.position.y = 2;
+    // group2.position.z = -5;
+
+    group.position.z = 20;
+    group.position.y = 2; 
 
     this.add.existing(group);
-    // group.add(c1)
+    // this.add.existing(group2);
     group.add(c2);
-    // group.add(this.camera);
+
+    c2.add(vert1);
+    // group.add(vert1);
     this.physics.add.existing(group);
+    this.scene.add(vert1);
+
+
 
     const press = (e, isDown) => {
       e.preventDefault();
@@ -285,12 +298,15 @@ export class ThreePhysicsComponent extends Scene3D {
     let ay = angVel.y();
     let az = angVel.z();
     let velLength;
-    let angleLength;
+    let angularSpeed;
 		let currentSpeed;
+		let maxCurSpeed = 1000;
     let vel = body.velocity; 
     let radius;
     let upAcc;
     let velSquared;
+    let vertPos = new THREE.Vector3(0, 0, 0);
+     
 		// setMass(body, mass); //huh? why is the mass changing
 
     if (this.keys.space) {
@@ -304,31 +320,66 @@ export class ThreePhysicsComponent extends Scene3D {
     }
 
     let strength = .05;
-    
+    let turnX = tx/Math.abs(tx);
+    let turnY = ty/Math.abs(ty);
+
 		totalForce.x = dirMult * (forwardForce * forward.x) * .1;
 		totalForce.y = dirMult * (forwardForce * forward.y) * .1;
 		totalForce.z = dirMult * (forwardForce * forward.z) * .1;
+  
+    //v == rw
+    // currentSpeed = dot( vel, forward);
+    currentSpeed = dot( vel, vel);
+    angularSpeed = Math.sqrt((ax * ax) + (ay * ay) + (az * az));
+    radius = Math.abs(currentSpeed/angularSpeed);
+    
+    let cForce;
 
-    currentSpeed = Math.sqrt((vel.x * vel.x) + (vel.y * vel.y) + (vel.z * vel.z));
-    angleLength = Math.sqrt((ax * ax) + (ay * ay) + (az * az));
-    // currentSpeed = dot( threeVector(vel), threeVector(forward));
-    radius = currentSpeed/angleLength;
-    velSquared = dot(currentSpeed, currentSpeed);
-    upAcc = velSquared/radius;
+    if(currentSpeed > maxCurSpeed){
+      currentSpeed = maxCurSpeed;
+    }
+    // let combo = new THREE.Vector3();
+    // combo.x = Math.sqrt((Math.abs(up.x) + Math.abs(right.x)) /2);
+    // combo.y = Math.sqrt((Math.abs(up.y) + Math.abs(right.y)) /2);
+    // combo.z = Math.sqrt((Math.abs(up.z) + Math.abs(right.z)) /2);
+
+    if(isNaN(radius)){
+      radius = 0;
+    }
 
     if(!notNullDef(upAcc)){
       upAcc = 0;
     }
+    if(!notNullDef(radius)){
+      radius = 0;
+    } else if (!isFinite(radius)) {
+      radius = currentSpeed;
+    }
+    
+    if(radius == 0){
+      currentSpeed = maxCurSpeed;
+    } else {
+      cForce = (currentSpeed)/radius;
+    }
 
-    upForce.x +=  upAcc * up.x * 100;
-    upForce.y +=  upAcc * up.y * 100;
-    upForce.z +=  upAcc * up.z * 100;
+    if(isNaN(cForce)){
+      cForce = 0;
+    }
 
-    totalForce.x += upForce.x;
-    totalForce.y += upForce.y;
-    totalForce.z += upForce.z;
+    if(isNaN(turnY)){
+      turnY = 0;
+    }
 
-    console.log(upForce);
+    //upforce needs to be modified by dominant stick input.
+    vertPos = radius * upForce.x;
+    vertPos = radius * upForce.y;
+    vertPos = radius * upForce.z; 
+
+    let vert = this.scene.vertex;
+    
+    //direction object pointing and stick angle influecing upforce?
+    
+    // console.log(currentSpeed + " " + radius);
     // console.log(currentSpeed);
     // console.log(group.setRotationFromEuler(vec3)); //main function I need
     // console.log(group.rotateOnAxis(vec3)); //localRot
@@ -342,13 +393,29 @@ export class ThreePhysicsComponent extends Scene3D {
     // console.log(group.setRotationFromAxisAngle(vec3)); //localRot
     // console.log(group.body); //globalRot
 
-
     appliedTorque['x'] *= 4;
     appliedTorque['y'] *= 4;
     appliedTorque['z'] *= 4;
 
+    let groupPos = group.position; 
+  
+    // groupPos.x += up.x * radius * turnX;
+    // groupPos.y += up.y * radius * turnX;
+    // groupPos.z += up.z * radius * turnX;
+
+    groupPos.x += right.x * radius * turnY;
+    groupPos.y += right.y * radius * turnY;
+    groupPos.z += right.z * radius * turnY;
+
+    totalForce.x = totalForce.x + (groupPos.x * cForce * .004);
+    totalForce.y = totalForce.y + (groupPos.y * cForce * .004);
+    totalForce.z = totalForce.z + (groupPos.z * cForce * .004); 
+
+    vert.position.set(groupPos.x, groupPos.y, groupPos.z);
+    vert.body.needUpdate = true;
+
     if (this.keys.lshift) {
-        
+      // console.log(groupPos.x, groupPos.y, groupPos.z);
       aDamp = 21;
       if (this.setVel == false) {
         //drift
@@ -382,17 +449,18 @@ export class ThreePhysicsComponent extends Scene3D {
       // group.body.applyForce(linearBrakeForce * -linVel['x'], linearBrakeForce *  -linVel['y'], linearBrakeForce * -linVel['z'] );
     }
 
-    // this.camera.lookAt(0, 0, 110);
-    this.camera.position.set(0.25, 50, 10);
+    this.camera.position.set(0.25, 150, 10);
     var mat = group.matrix;
 
     // group.body.setLinearFactor(1, 1, 1);
-
     // group.body.setAngularFactor(.5, .5, .5);
-    // group.body.ammo.setDamping( lDamp, .5 + aDamp);
-    group.body.applyForce(totalForce.x, totalForce.y, totalForce.z);
+    
+    group.body.ammo.setDamping( lDamp, .5 + aDamp);
+    // group.body.applyForce(totalForce.x, totalForce.y, totalForce.z);
 
-      // group.body.applyCentralLocalForce(0, 0, -forwardForce );
+    // group.body.applyForce(totalForce.x, 0, totalForce.z);
+
+      group.body.applyCentralLocalForce(0, 0, -forwardForce );
 
     // this.camera.rotation.set(anchorRot.x, anchorRot.y, anchorRot.z);
 
