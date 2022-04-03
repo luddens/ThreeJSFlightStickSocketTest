@@ -32,6 +32,7 @@ const notNullDef = (n) => {
 const setMass = (body, mass) => {
   body['mass'] = mass;
   body.ammo.setMassProps(mass, new threeVector(0,0,0));
+  body.ammo.getCollisionShape().calculateLocalInertia( mass, new threeVector(0,0,0))
 };
 
 const getMass = (body) => {
@@ -42,6 +43,14 @@ const getMass = (body) => {
   // console.log( body.ammo.setMassProps(.01, new threeVector(0,0,0)));
   // console.log( body.ammo.setDamping);
 };
+
+let zeroOut = (x) =>{
+  if(!notNullDef(x)){
+    return 0;
+  } else {
+    return x;
+  }
+}
 export class ThreePhysicsComponent extends Scene3D {
   keys = {
     w: false,
@@ -58,10 +67,11 @@ export class ThreePhysicsComponent extends Scene3D {
     ctrl: false,
   };
 
-  lastVel;
-
   brakeDirection = new THREE.Vector3(0, 0, 0);
   setVel = false;
+
+  lastVel = {};
+  lastAngVel = {};
 
   constructor() {
     super();
@@ -292,7 +302,7 @@ export class ThreePhysicsComponent extends Scene3D {
     let lDamp = 0;
     let floatAcc = 8;
     let curVel = new THREE.Vector3(body.ammo.getLinearVelocity().x(), body.ammo.getLinearVelocity().y(), body.ammo.getLinearVelocity().z());
-    let mass = .05;
+    let mass = 1;
     upForce = new THREE.Vector3(0, 0, 0);
     let ax = angVel.x();
     let ay = angVel.y();
@@ -306,8 +316,39 @@ export class ThreePhysicsComponent extends Scene3D {
     let upAcc;
     let velSquared;
     let vertPos = new THREE.Vector3(0, 0, 0);
+    let acc = new THREE.Vector3(0, 0, 0);
+    let minInputStrength = .0125;
      
-		// setMass(body, mass); //huh? why is the mass changing
+		setMass(body, mass); //huh? why is the mass changing
+ 
+    let strength = .05;
+    let turnX = tx/Math.abs(tx);
+    let turnY = ty/Math.abs(ty);
+    let changeVel;
+    let changeAngVel;
+
+    let cForce;
+    let vert = this.scene.vertex;
+    let groupPos = group.position; 
+    
+    let lastSpeed = Math.sqrt((this.lastVel.x * this.lastVel.x) + (this.lastVel.y * this.lastVel.y) + (this.lastVel.z * this.lastVel.z));
+    let lastAngSpeed = Math.sqrt((this.lastAngVel.x* this.lastAngVel.x) + (this.lastAngVel.y *this.lastAngVel.y) + (this.lastAngVel.z * this.lastAngVel.z));
+
+    currentSpeed = Math.sqrt((vel.x * vel.x) + (vel.y * vel.y) + (vel.z * vel.z));
+    angularSpeed = Math.sqrt((ax * ax) + (ay * ay) + (az * az));
+    radius = Math.abs(currentSpeed/angularSpeed); 
+    
+    acc.x = (this.lastVel.x - vel.x)/var2;
+    acc.y = (this.lastVel.y - vel.y)/var2;
+    acc.z = (this.lastVel.z - vel.z)/var2;
+
+    // currentSpeed = dot( vel, forward);
+    // // currentSpeed = dot( vel, vel );
+    // angularSpeed = dot( av, av );
+    // radius = 5;
+
+    changeVel = Math.abs(currentSpeed - lastSpeed);
+    changeAngVel = Math.abs(angularSpeed - lastAngSpeed);
 
     if (this.keys.space) {
       forwardForce *= 3;
@@ -319,34 +360,18 @@ export class ThreePhysicsComponent extends Scene3D {
       dirMult = -1;
     }
 
-    let strength = .05;
-    let turnX = tx/Math.abs(tx);
-    let turnY = ty/Math.abs(ty);
-
-		totalForce.x = dirMult * (forwardForce * forward.x) * .1;
-		totalForce.y = dirMult * (forwardForce * forward.y) * .1;
-		totalForce.z = dirMult * (forwardForce * forward.z) * .1;
-  
-    //v == rw
-    // currentSpeed = dot( vel, forward);
-    currentSpeed = dot( vel, vel);
-    angularSpeed = Math.sqrt((ax * ax) + (ay * ay) + (az * az));
-    radius = Math.abs(currentSpeed/angularSpeed);
-    
-    let cForce;
+    // for(var i in acc){
+    //   if(!notNullDef(acc[i])){
+    //     acc[i] = 0;
+    //   }
+    // }
 
     if(currentSpeed > maxCurSpeed){
       currentSpeed = maxCurSpeed;
     }
-    // let combo = new THREE.Vector3();
-    // combo.x = Math.sqrt((Math.abs(up.x) + Math.abs(right.x)) /2);
-    // combo.y = Math.sqrt((Math.abs(up.y) + Math.abs(right.y)) /2);
-    // combo.z = Math.sqrt((Math.abs(up.z) + Math.abs(right.z)) /2);
-
     if(isNaN(radius)){
       radius = 0;
     }
-
     if(!notNullDef(upAcc)){
       upAcc = 0;
     }
@@ -355,79 +380,103 @@ export class ThreePhysicsComponent extends Scene3D {
     } else if (!isFinite(radius)) {
       radius = currentSpeed;
     }
-    
     if(radius == 0){
-      currentSpeed = maxCurSpeed;
+      // console.log(radius);
+      // currentSpeed = maxCurSpeed;
+      cForce = 0;
     } else {
+      // cForce = (angularSpeed)*radius;
       cForce = (currentSpeed)/radius;
     }
-
     if(isNaN(cForce)){
       cForce = 0;
     }
-
-    if(isNaN(turnY)){
+    if(isNaN(turnY) || Math.abs(tx) < minInputStrength){
       turnY = 0;
     }
 
-    //upforce needs to be modified by dominant stick input.
-    vertPos = radius * upForce.x;
-    vertPos = radius * upForce.y;
-    vertPos = radius * upForce.z; 
+    if(isNaN(turnX) || Math.abs(tx) < minInputStrength){
+      turnX = 0;
+    }
 
-    let vert = this.scene.vertex;
-    
-    //direction object pointing and stick angle influecing upforce?
-    
-    // console.log(currentSpeed + " " + radius);
-    // console.log(currentSpeed);
-    // console.log(group.setRotationFromEuler(vec3)); //main function I need
-    // console.log(group.rotateOnAxis(vec3)); //localRot
-    // console.log(group.rotateOnWorldAxis(vec3)); //localRot
-    // console.log(group.rotation);
-    // console.log(group.quaternion);
-    // console.log(group.worldToLocal);
-    // console.log(group.matrix); //localRot
-    // console.log(group.matrixWorld); //globalRot
-    // console.log(group.localToWorld(vec3)); //localRot
-    // console.log(group.setRotationFromAxisAngle(vec3)); //localRot
-    // console.log(group.body); //globalRot
-
-    appliedTorque['x'] *= 4;
-    appliedTorque['y'] *= 4;
-    appliedTorque['z'] *= 4;
-
-    let groupPos = group.position; 
+    // let combo = new THREE.Vector3();
+    // combo.x = Math.sqrt((Math.abs(up.x) + Math.abs(right.x)) /2);
+    // combo.y = Math.sqrt((Math.abs(up.y) + Math.abs(right.y)) /2);
+    // combo.z = Math.sqrt((Math.abs(up.z) + Math.abs(right.z)) /2);
   
     // groupPos.x += up.x * radius * turnX;
     // groupPos.y += up.y * radius * turnX;
     // groupPos.z += up.z * radius * turnX;
+    let lAccel = changeVel/var2;
 
-    groupPos.x += right.x * radius * turnY;
-    groupPos.y += right.y * radius * turnY;
-    groupPos.z += right.z * radius * turnY;
+    acc.x = zeroOut(acc.x);
+    acc.y = zeroOut(acc.y);
+    acc.z = zeroOut(acc.z);
 
-    totalForce.x = totalForce.x + (groupPos.x * cForce * .004);
-    totalForce.y = totalForce.y + (groupPos.y * cForce * .004);
-    totalForce.z = totalForce.z + (groupPos.z * cForce * .004); 
+    vertPos.x += right.x * radius * turnY;
+    vertPos.y += right.y * radius * turnY;
+    vertPos.z += right.z * radius * turnY;
+
+    groupPos.x += vertPos.x;
+    groupPos.y += vertPos.y;
+    groupPos.z += vertPos.z;
+
+		totalForce.x = dirMult * (forwardForce * forward.x) * .1;
+		totalForce.y = dirMult * (forwardForce * forward.y) * .1;
+		totalForce.z = dirMult * (forwardForce * forward.z) * .1;
+
+    totalForce.x += (vertPos.x * cForce * .004);
+    totalForce.y += (vertPos.y * cForce * .004); 
+    totalForce.z += (vertPos.z * cForce * .004); 
 
     vert.position.set(groupPos.x, groupPos.y, groupPos.z);
     vert.body.needUpdate = true;
 
+    let backward = forward;
+    let backwardAcc = {};
+    
+    backward.x = 1 - Math.abs(backward.x);
+    backward.y = 1 - Math.abs(backward.y);
+    backward.z = 1 - Math.abs(backward.z);
+
+    backwardAcc.x = acc.x * backward.x;
+    backwardAcc.y = acc.y * backward.y;
+    backwardAcc.z = acc.z * backward.z;
+    
+    let oldForce = {};
+    oldForce.x = totalForce.x
+    oldForce.y = totalForce.y 
+    oldForce.z = totalForce.z
+
+    //get current acceleration on the frame
+    //stop applying force in directions not facing movement vector
+    //apply deceleration in directions not faacing movement vector 
+
+    totalForce.x += ( backwardAcc.x * 5);
+    totalForce.y += ( backwardAcc.y * 5);
+    totalForce.z += ( backwardAcc.z * 5); 
+
+
     if (this.keys.lshift) {
-      // console.log(groupPos.x, groupPos.y, groupPos.z);
+    console.log(backwardAcc, totalForce);
+    // console.log(acc)
+    // console.log(acc)
+
       aDamp = 21;
       if (this.setVel == false) {
         //drift
         this.setVel = true;
       } else {
       }
-
       // group.body.ammo.setDamping(.5, .5);
       // group.body.setAngularFactor(0, 0 , 0);
     } else {
       this.setVel = false;
     }
+
+    appliedTorque['x'] *= 4;
+    appliedTorque['y'] *= 4;
+    appliedTorque['z'] *= 4;
 
     if (
       notNullDef(appliedTorque["x"]) &&
@@ -443,28 +492,42 @@ export class ThreePhysicsComponent extends Scene3D {
 
     if (this.keys.ctrl) {
       lDamp = 1;
-      group.body.setLinearFactor(0, 0, 0);
+      // group.body.setLinearFactor(0, 0, 0);
     } else {
       lDamp = 0;
       // group.body.applyForce(linearBrakeForce * -linVel['x'], linearBrakeForce *  -linVel['y'], linearBrakeForce * -linVel['z'] );
     }
-
-    this.camera.position.set(0.25, 150, 10);
-    var mat = group.matrix;
+    
+    //direction object pointing and stick angle influecing upforce?
+    // console.log(currentSpeed + " " + radius);
+    // console.log(currentSpeed);
+    // console.log(group.setRotationFromEuler(vec3)); //main function I need
+    // console.log(group.rotateOnAxis(vec3));
+    // console.log(group.rotateOnWorldAxis(vec3));
+    // console.log(group.rotation);
+    // console.log(group.quaternion);
+    // console.log(group.worldToLocal(groupPos));
+    // console.log(group.localToWorld(groupPos)); 
+    // console.log(group.matrix); /
+    // console.log(group.matrixWorld); 
+    // console.log(group.setRotationFromAxisAngle(vec3)); 
+    // console.log(group.body); //globalRot
 
     // group.body.setLinearFactor(1, 1, 1);
     // group.body.setAngularFactor(.5, .5, .5);
-    
-    group.body.ammo.setDamping( lDamp, .5 + aDamp);
-    // group.body.applyForce(totalForce.x, totalForce.y, totalForce.z);
+    // group.body.ammo.setDamping( lDamp, .5 + aDamp);
+    group.body.applyForce(totalForce.x, totalForce.y, totalForce.z);
 
-    // group.body.applyForce(totalForce.x, 0, totalForce.z);
 
-      group.body.applyCentralLocalForce(0, 0, -forwardForce );
+    this.lastVel = vel;
+    this.lastAngVel= {};
+    this.lastAngVel.x = ax;
+    this.lastAngVel.y = ay;
+    this.lastAngVel.z = az;
 
     // this.camera.rotation.set(anchorRot.x, anchorRot.y, anchorRot.z);
-
-    this.lastVel = velLength;
+    this.camera.position.set(0.25, 150, 10);
+    var mat = group.matrix;
   }
 }
 
