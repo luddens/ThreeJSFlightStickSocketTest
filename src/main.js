@@ -72,6 +72,8 @@ export class ThreePhysicsComponent extends Scene3D {
 
   lastVel = {};
   lastAngVel = {};
+  forwardMult = 0;
+  dirMult = 0;
 
   constructor() {
     super();
@@ -103,12 +105,12 @@ export class ThreePhysicsComponent extends Scene3D {
 
    const vert1 = this.physics.add.box(
         { x: 5, y: 2, z: -5, width: .5, height: .5, depth: .5, mass :0, collisionFlags: 6 },
-        { lambert: { color: 'red', transparent: true, opacity: 1 } }
+        { lambert: { color: 'red', transparent: true, opacity: 0 } }
     )
 
     let c2 = this.add.box(
       { x: 1, y: 0, z: 0, mass: 5, collisionFlags: 0 },
-      { lambert: { color: 'red', transparent: true, opacity: 0.25 } 
+      { lambert: { color: 'red', transparent: true, opacity: 0.0} 
     });
     
     this.scene.vertex = vert1;
@@ -129,11 +131,11 @@ export class ThreePhysicsComponent extends Scene3D {
     this.add.existing(group);
     // this.add.existing(group2);
     group.add(c2);
-
+    group.add(this.camera)
     c2.add(vert1);
     // group.add(vert1);
     this.physics.add.existing(group);
-    this.scene.add(vert1);
+    // this.scene.add(vert1);
 
 
 
@@ -211,14 +213,13 @@ export class ThreePhysicsComponent extends Scene3D {
     const turnForce = 0.25;
     const angularBrakeForce = 0.5;
     const linearBrakeForce = 0.01;
-    const group = this.scene.children[5];
+    const group = this.scene.children[6];
     const eRot = group.rotation;
     const matRot = group.matrix;
     const YAW = 0;
     const PITCH = 1;
     const ROLL = 5;
-    let forwardForce = 2;
-    let upForce = 2;
+    let forwardForce = 12;
     let throttle = stick[6]; //for some reason up is negative
     let body = group.body;
 
@@ -226,7 +227,6 @@ export class ThreePhysicsComponent extends Scene3D {
       throttle = 0;
     } else
     throttle *= -1;
-    let enginePower = throttle;
 
     //this code will fix the issue of the object moving too fast through other objects
 // // Enable CCD if the object moves more than 1 meter in one simulation frame
@@ -235,11 +235,6 @@ export class ThreePhysicsComponent extends Scene3D {
 // // Set the radius of the embedded sphere such that it is smaller than the object
 // object.body.setCcdSweptSphereRadius(0.2)
 
-    // http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToAngle/index.htm
-
-    // THREE.Vector4.applyMatrix4();
-    // const Axis = THREE.Euler.setFromRotationMatrix();
-    // const axis = new THREE.Vector4().setAxisAngleFromRotationMatrix(matRot);
 
     // //the angles i need
     let x = eRot.x;
@@ -256,39 +251,22 @@ export class ThreePhysicsComponent extends Scene3D {
     z = parseFloat(z).toFixed(15);
 
     let appliedTorque;
-    const tx = stick[YAW] * turnForce;
-    const ty = stick[PITCH] * turnForce;
+    const tx = stick[PITCH] * turnForce;
+    const ty = -stick[YAW] * turnForce;
     const tz = -stick[ROLL] * turnForce;
+
+    // const tx = stick[YAW] * turnForce;
+    // const ty = stick[PITCH] * turnForce;
+    // const tz = -stick[ROLL] * turnForce;
     appliedTorque = new THREE.Vector3(tx, ty, tz);
 
     const quat = group.quaternion;
     const angVel = body.ammo.getAngularVelocity();
-    const linVel = body.velocity;
 
 		let right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
 		let up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
 		let forward = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
     
-
-    // let vel = group.body.velocity; 
-    // let velLength = Math.sqrt((vel.x * vel.x) + (vel.y * vel.y) + (vel.z * vel.z));
-		// const currentSpeed = dot( threeVector(vel), threeVector(forward));
-		// let flightModeInfluence = currentSpeed / 10;
-		// flightModeInfluence = THREE.MathUtils.clamp(flightModeInfluence, 0, 1);
-		// let right = new THREE.Vector3(1, 0, 0).applyQuaternion(quat);
-		// let up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
-		// let forward = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
-    // let vel = group.body.velocity; 
-    // let velLength = Math.sqrt((vel.x * vel.x) + (vel.y * vel.y) + (vel.z * vel.z));
-		// const currentSpeed = dot( threeVector(vel), threeVector(forward));
-		// let flightModeInfluence = currentSpeed / 10;
-		// flightModeInfluence = THREE.MathUtils.clamp(-flightModeInfluence, 0, 1);
-    // let angVel = new THREE.Vector3(0,0,0);
-
-    // group.body.setLinearFactor(1, 1, 1);
-    // group.body.setAngularFactor(1, 1, 1);
-
-    const aVel = body.ammo.getAngularVelocity();
     const aFact = body.ammo.getAngularFactor();
  
     var anchorPos = new THREE.Vector3().copy(group.position);
@@ -296,18 +274,12 @@ export class ThreePhysicsComponent extends Scene3D {
     let dragForce = new THREE.Vector3(0, 0, 0);
     let dragMult = new THREE.Vector3(0, 0, 0);
     let totalForce = new THREE.Vector3(0, 0, 0);
-    // let radius = new THREE.Vector3(0, 0, 0);
-    let dirMult = 0;
     let aDamp = 0;
     let lDamp = 0;
-    let floatAcc = 8;
-    let curVel = new THREE.Vector3(body.ammo.getLinearVelocity().x(), body.ammo.getLinearVelocity().y(), body.ammo.getLinearVelocity().z());
     let mass = 1;
-    upForce = new THREE.Vector3(0, 0, 0);
     let ax = angVel.x();
     let ay = angVel.y();
     let az = angVel.z();
-    let velLength;
     let angularSpeed;
 		let currentSpeed;
 		let maxCurSpeed = 1000;
@@ -321,7 +293,6 @@ export class ThreePhysicsComponent extends Scene3D {
      
 		setMass(body, mass); //huh? why is the mass changing
  
-    let strength = .05;
     let turnX = tx/Math.abs(tx);
     let turnY = ty/Math.abs(ty);
     let changeVel;
@@ -335,6 +306,12 @@ export class ThreePhysicsComponent extends Scene3D {
     let lastAngSpeed = Math.sqrt((this.lastAngVel.x* this.lastAngVel.x) + (this.lastAngVel.y *this.lastAngVel.y) + (this.lastAngVel.z * this.lastAngVel.z));
 
     currentSpeed = Math.sqrt((vel.x * vel.x) + (vel.y * vel.y) + (vel.z * vel.z));
+
+  
+    if(isNaN(currentSpeed)){
+      currentSpeed = 0;
+    }
+    
     angularSpeed = Math.sqrt((ax * ax) + (ay * ay) + (az * az));
     radius = Math.abs(currentSpeed/angularSpeed); 
     
@@ -353,18 +330,33 @@ export class ThreePhysicsComponent extends Scene3D {
     if (this.keys.space) {
       forwardForce *= 3;
     }
+  
+    const increaseForwardForce = () => {
+      this.forwardMult *= 1.005;
 
-    if (this.keys.w) {
-      dirMult = 1;
-    } else if (this.keys.s) { 
-      dirMult = -1;
+      if(this.forwardMult >= 2){
+        this.forwardMult = 2;
+      } else if (this.forwardMult == 0 ){
+        this.forwardMult = .5;
+      }
     }
 
-    // for(var i in acc){
-    //   if(!notNullDef(acc[i])){
-    //     acc[i] = 0;
-    //   }
-    // }
+    if (this.keys.w) {
+      increaseForwardForce();
+      this.dirMult = 1;
+    } else if (this.keys.s) { 
+      increaseForwardForce();
+      this.dirMult = -1;
+    } else {
+      this.forwardMult *= .9925;
+
+      if(this.forwardMult <= .1){
+        this.forwardMult = 0;
+      }
+    }
+
+    vert.body.checkCollisions = false;
+    
 
     if(currentSpeed > maxCurSpeed){
       currentSpeed = maxCurSpeed;
@@ -381,11 +373,9 @@ export class ThreePhysicsComponent extends Scene3D {
       radius = currentSpeed;
     }
     if(radius == 0){
-      // console.log(radius);
       // currentSpeed = maxCurSpeed;
       cForce = 0;
     } else {
-      // cForce = (angularSpeed)*radius;
       cForce = (currentSpeed)/radius;
     }
     if(isNaN(cForce)){
@@ -413,56 +403,88 @@ export class ThreePhysicsComponent extends Scene3D {
     acc.y = zeroOut(acc.y);
     acc.z = zeroOut(acc.z);
 
-    vertPos.x += right.x * radius * turnY;
-    vertPos.y += right.y * radius * turnY;
-    vertPos.z += right.z * radius * turnY;
+    vertPos.x += this.dirMult * right.x * radius * turnY;
+    vertPos.y += this.dirMult * right.y * radius * turnY;
+    vertPos.z += this.dirMult * right.z * radius * turnY;
 
     groupPos.x += vertPos.x;
     groupPos.y += vertPos.y;
     groupPos.z += vertPos.z;
 
-		totalForce.x = dirMult * (forwardForce * forward.x) * .1;
-		totalForce.y = dirMult * (forwardForce * forward.y) * .1;
-		totalForce.z = dirMult * (forwardForce * forward.z) * .1;
+    forwardForce *= this.forwardMult;
 
-    totalForce.x += (vertPos.x * cForce * .004);
-    totalForce.y += (vertPos.y * cForce * .004); 
-    totalForce.z += (vertPos.z * cForce * .004); 
+		totalForce.x = (this.dirMult * (forwardForce * forward.x) * -.15);
+		totalForce.y = (this.dirMult * (forwardForce * forward.y) * -.15);
+		totalForce.z = (this.dirMult * (forwardForce * forward.z) * -.15);
+
+    totalForce.x += ( vertPos.x * cForce * .015);
+    totalForce.y += ( vertPos.y * cForce * .015); 
+    totalForce.z += ( vertPos.z * cForce * .015); 
 
     vert.position.set(groupPos.x, groupPos.y, groupPos.z);
     vert.body.needUpdate = true;
 
-    let backward = forward;
-    let backwardAcc = {};
+    let backward = {};
+    let backwardForce = {};
+    let velDir = {};
+    let inertia = {};
+    
+    backward.x = forward.x;
+    backward.y = forward.y;
+    backward.z = forward.z;
+
+    velDir.x = Math.abs(vel.x)/vel.x;
+    velDir.y = Math.abs(vel.y)/vel.y;
+    velDir.z = Math.abs(vel.z)/vel.z;
     
     backward.x = 1 - Math.abs(backward.x);
     backward.y = 1 - Math.abs(backward.y);
     backward.z = 1 - Math.abs(backward.z);
 
-    backwardAcc.x = acc.x * backward.x;
-    backwardAcc.y = acc.y * backward.y;
-    backwardAcc.z = acc.z * backward.z;
-    
-    let oldForce = {};
-    oldForce.x = totalForce.x
-    oldForce.y = totalForce.y 
-    oldForce.z = totalForce.z
-
     //get current acceleration on the frame
     //stop applying force in directions not facing movement vector
     //apply deceleration in directions not faacing movement vector 
 
-    totalForce.x += ( backwardAcc.x * 5);
-    totalForce.y += ( backwardAcc.y * 5);
-    totalForce.z += ( backwardAcc.z * 5); 
+    inertia.x =  vel.x / currentSpeed;
+    inertia.y =  vel.y / currentSpeed;
+    inertia.z =  vel.z / currentSpeed;
+    
+    if(isNaN(inertia.x)){
+      inertia.x = 0;
+    }
+    
+    if(isNaN(inertia.y)){
+      inertia.y = 0;
+    }
+    
+    if(isNaN(inertia.z)){
+      inertia.z = 0;
+    }
+    
+    backwardForce.x = inertia.x * .085 * currentSpeed;
+    backwardForce.y = inertia.y * .085 * currentSpeed;
+    backwardForce.z = inertia.z * .085 * currentSpeed;
+        
+    totalForce.x -= backwardForce.x;
+    totalForce.y -= backwardForce.y;
+    totalForce.z -= backwardForce.z; 
 
+    body.setRestitution(1);
 
+    // console.log( Math.abs(forward.x) + Math.abs(forward.z) );
+    // console.log( Math.pow(forward.x, 2) + Math.pow(forward.z, 2));
+    // console.log( backwardForce.x, backwardForce.y, backwardForce.z);
+    // console.log( inertia )
+    // console.log( Math.pow(forward.x, 2) + Math.pow(forward.z, 2) );
+
+    aDamp = .99;
     if (this.keys.lshift) {
-    console.log(backwardAcc, totalForce);
-    // console.log(acc)
-    // console.log(acc)
+      // console.log( forward.x, forward.y, forward.z, y )
 
-      aDamp = 21;
+      // if(.50 - Math.abs(y) < .005 ){
+        aDamp = 21;
+      // }
+      
       if (this.setVel == false) {
         //drift
         this.setVel = true;
@@ -475,49 +497,38 @@ export class ThreePhysicsComponent extends Scene3D {
     }
 
     appliedTorque['x'] *= 4;
-    appliedTorque['y'] *= 4;
-    appliedTorque['z'] *= 4;
+    appliedTorque['y'] *= 2;
+    appliedTorque['z'] *= 6; 
+
+    console.log(appliedTorque);
 
     if (
       notNullDef(appliedTorque["x"]) &&
       notNullDef(appliedTorque["y"]) &&
       notNullDef(appliedTorque["z"])
     ) {
-    group.body.applyLocalTorque(
-        0,
+      // group.body.applyLocalTorque(
+      //   0,
+      //   appliedTorque["y"],
+      //   0,
+      // );
+      group.body.applyLocalTorque(
+        appliedTorque["x"],
         appliedTorque["y"],
-        0,
+        appliedTorque["z"],
       );
     }
 
+
     if (this.keys.ctrl) {
-      lDamp = 1;
-      // group.body.setLinearFactor(0, 0, 0);
     } else {
-      lDamp = 0;
-      // group.body.applyForce(linearBrakeForce * -linVel['x'], linearBrakeForce *  -linVel['y'], linearBrakeForce * -linVel['z'] );
     }
     
-    //direction object pointing and stick angle influecing upforce?
-    // console.log(currentSpeed + " " + radius);
-    // console.log(currentSpeed);
-    // console.log(group.setRotationFromEuler(vec3)); //main function I need
-    // console.log(group.rotateOnAxis(vec3));
-    // console.log(group.rotateOnWorldAxis(vec3));
-    // console.log(group.rotation);
-    // console.log(group.quaternion);
-    // console.log(group.worldToLocal(groupPos));
-    // console.log(group.localToWorld(groupPos)); 
-    // console.log(group.matrix); /
-    // console.log(group.matrixWorld); 
-    // console.log(group.setRotationFromAxisAngle(vec3)); 
-    // console.log(group.body); //globalRot
-
     // group.body.setLinearFactor(1, 1, 1);
     // group.body.setAngularFactor(.5, .5, .5);
-    // group.body.ammo.setDamping( lDamp, .5 + aDamp);
+    group.body.ammo.setDamping( 0, aDamp);
+    // group.body.setVelocity(totalForce.x, totalForce.y, totalForce.z);
     group.body.applyForce(totalForce.x, totalForce.y, totalForce.z);
-
 
     this.lastVel = vel;
     this.lastAngVel= {};
@@ -526,7 +537,10 @@ export class ThreePhysicsComponent extends Scene3D {
     this.lastAngVel.z = az;
 
     // this.camera.rotation.set(anchorRot.x, anchorRot.y, anchorRot.z);
-    this.camera.position.set(0.25, 150, 10);
+    this.camera.position.set(0, 0, .5);
+    // this.camera.position.set(0.25, 20, 30);
+    // this.camera.position.set(0.25, 100, 30);
+    
     var mat = group.matrix;
   }
 }
